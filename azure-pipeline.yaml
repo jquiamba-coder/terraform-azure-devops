@@ -1,0 +1,99 @@
+trigger:
+  - main
+
+stages:
+  - stage: Terraform_Dev
+    displayName: "Terraform Plan for Dev"
+    jobs:
+      - job: Plan_Dev
+        displayName: "Terraform Init & Plan"
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: TerraformInstaller@0
+            inputs:
+              terraformVersion: 'latest'
+
+          - script: |
+              terraform init
+              terraform workspace new dev || terraform workspace select dev
+              terraform plan -var="resource_group_name=dev-rg"
+            displayName: "Terraform Init & Plan (Dev)"
+
+  - stage: Terraform_Staging
+    displayName: "Terraform Plan for Staging"
+    dependsOn: Terraform_Dev
+    condition: succeeded()
+    jobs:
+      - job: Plan_Staging
+        displayName: "Terraform Init & Plan"
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              terraform init
+              terraform workspace new staging || terraform workspace select staging
+              terraform plan -var="resource_group_name=staging-rg"
+            displayName: "Terraform Init & Plan (Staging)"
+
+  - stage: Terraform_Staging_Apply
+    displayName: "Terraform Apply for Staging"
+    dependsOn: Terraform_Staging
+    condition: succeeded()
+    jobs:
+      - job: Apply_Staging
+        displayName: "Terraform Apply (Staging)"
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              terraform workspace select staging
+              terraform apply -auto-approve
+            displayName: "Terraform Apply (Staging)"
+
+  - stage: Terraform_Prod
+    displayName: "Terraform Plan for Prod"
+    dependsOn: Terraform_Staging_Apply
+    condition: succeeded()
+    jobs:
+      - job: Plan_Prod
+        displayName: "Terraform Init & Plan"
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              terraform init
+              terraform workspace new prod || terraform workspace select prod
+              terraform plan -var="resource_group_name=prod-rg"
+            displayName: "Terraform Init & Plan (Prod)"
+
+  - stage: Terraform_Prod_Approval
+    displayName: "Manual Approval for Production"
+    dependsOn: Terraform_Prod
+    condition: succeeded()
+    jobs:
+      - job: WaitForApproval
+        displayName: "Manual Approval"
+        pool: server
+        steps:
+          - task: ManualValidation@0
+            inputs:
+              notifyUsers: 'jlsryn.quiambao@gmail.com'
+              instructions: 'Approve deployment to Production'
+              onTimeout: 'reject'
+
+  - stage: Terraform_Prod_Apply
+    displayName: "Terraform Apply for Prod"
+    dependsOn: Terraform_Prod_Approval
+    condition: succeeded()
+    jobs:
+      - job: Apply_Prod
+        displayName: "Terraform Apply (Prod)"
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              terraform workspace select prod
+              terraform apply -auto-approve
+            displayName: "Terraform Apply (Prod)"
+
