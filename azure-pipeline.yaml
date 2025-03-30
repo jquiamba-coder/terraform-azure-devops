@@ -16,7 +16,7 @@ stages:
 
           - script: |
               echo "ARM_CLIENT_ID: ${#ARM_CLIENT_ID} characters long"
-    	      echo "ARM_TENANT_ID: ${#ARM_TENANT_ID} characters long"
+              echo "ARM_TENANT_ID: ${#ARM_TENANT_ID} characters long"
               displayName: "Debug: Check Variable Lengths"
 
           - task: AzureCLI@2
