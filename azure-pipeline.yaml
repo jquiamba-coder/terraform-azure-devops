@@ -15,6 +15,12 @@ stages:
               terraformVersion: 'latest'
 
           - script: |
+             terraform init -reconfigure
+             terraform workspace new dev || terraform workspace select dev
+             terraform plan -var="resource_group_name=dev-rg"
+           displayName: "Terraform Init & Plan (Dev)"
+
+          - script: |
               terraform init
               terraform workspace new dev || terraform workspace select dev
               terraform plan -var="resource_group_name=dev-rg"
