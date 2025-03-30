@@ -19,6 +19,11 @@ stages:
               terraform workspace new dev || terraform workspace select dev
               terraform plan -var="resource_group_name=dev-rg"
             displayName: "Terraform Init & Plan (Dev)"
+            env:
+              ARM_CLIENT_ID: "7644dcef-b4f8-4b0e-9bad-9caea1dd8db3"
+              ARM_TENANT_ID: "8a6252a7-1844-4346-b815-d0b9404ef6c5"
+              ARM_SUBSCRIPTION_ID: "68013f73-ff8b-4a58-a1c4-67fb285c8c95"
+              ARM_USE_OIDC: "true"
 
   - stage: Terraform_Staging
     displayName: "Terraform Plan for Staging"
@@ -71,6 +76,11 @@ stages:
               terraform workspace new prod || terraform workspace select prod
               terraform plan -var="resource_group_name=prod-rg"
             displayName: "Terraform Init & Plan (Prod)"
+            env:
+              ARM_CLIENT_ID: "7644dcef-b4f8-4b0e-9bad-9caea1dd8db3"
+              ARM_TENANT_ID: "8a6252a7-1844-4346-b815-d0b9404ef6c5"
+              ARM_SUBSCRIPTION_ID: "68013f73-ff8b-4a58-a1c4-67fb285c8c95"
+              ARM_USE_OIDC: "true"
 
   - stage: Terraform_Prod_Approval
     displayName: "Manual Approval for Production"
@@ -101,4 +111,9 @@ stages:
               terraform workspace select prod
               terraform apply -auto-approve
             displayName: "Terraform Apply (Prod)"
+            env:
+              ARM_CLIENT_ID: "7644dcef-b4f8-4b0e-9bad-9caea1dd8db3"
+              ARM_TENANT_ID: "8a6252a7-1844-4346-b815-d0b9404ef6c5"
+              ARM_SUBSCRIPTION_ID: "68013f73-ff8b-4a58-a1c4-67fb285c8c95"
+              ARM_USE_OIDC: "true" 
 
