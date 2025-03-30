@@ -24,9 +24,9 @@ stages:
 		az login --service-principal -u $(ARM_CLIENT_ID) -p $(ARM_CLIENT_SECRET) --tenant $(ARM_TENANT_ID)
             
           - script: |
-             terraform init -reconfigure
-             terraform workspace new dev || terraform workspace select dev
-             terraform plan -var="resource_group_name=dev-rg"
+              terraform init -reconfigure
+              terraform workspace new dev || terraform workspace select dev
+              terraform plan -var="resource_group_name=dev-rg"
             displayName: "Terraform Init & Plan (Dev)"
 
           - script: |
