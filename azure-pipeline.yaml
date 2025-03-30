@@ -35,6 +35,11 @@ stages:
               terraform workspace new staging || terraform workspace select staging
               terraform plan -var="resource_group_name=staging-rg"
             displayName: "Terraform Init & Plan (Staging)"
+            env:
+              ARM_CLIENT_ID: "7644dcef-b4f8-4b0e-9bad-9caea1dd8db3"
+              ARM_TENANT_ID: "8a6252a7-1844-4346-b815-d0b9404ef6c5"
+              ARM_SUBSCRIPTION_ID: "68013f73-ff8b-4a58-a1c4-67fb285c8c95"
+              ARM_USE_OIDC: "true"
 
   - stage: Terraform_Staging_Apply
     displayName: "Terraform Apply for Staging"
