@@ -28,7 +28,7 @@ stages:
           - task: AzureCLI@2
             displayName: "Login to Azure using Federated Credentials"
             inputs:
-              azureSubscription: 'terraform-azure-devops-federated'
+              azureSubscription: 'terraform-pipeline'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
