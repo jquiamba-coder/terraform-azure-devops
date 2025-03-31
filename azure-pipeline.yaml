@@ -24,7 +24,7 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Step 2: Authenticate with Azure using Federated Credentials
+          # Step 2: Authenticate with Azure using Federated Credential
           - task: AzureCLI@2
             displayName: "Login to Azure using Federated Credentials"
             inputs:
