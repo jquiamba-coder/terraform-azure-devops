@@ -10,6 +10,9 @@ stages:
         pool:
           vmImage: "ubuntu-22.04"
         steps:
+          - checkout: self
+            persistCredentials: true  # Ensures OAuth token availability
+
           - task: TerraformInstaller@0
             inputs:
               terraformVersion: "latest"
@@ -27,19 +30,21 @@ stages:
                 az account clear
 
                 # Ensure SYSTEM_ACCESSTOKEN is available
-                if [ -z "$SYSTEM_ACCESSTOKEN" ]; then
+                if [ -z "$(System.AccessToken)" ]; then
                   echo "❌ ERROR: SYSTEM_ACCESSTOKEN is not available!"
                   exit 1
                 fi
 
                 # Perform login using OIDC token
-                az login --service-principal -u "$ARM_CLIENT_ID" --tenant "$ARM_TENANT_ID" --federated-token "$SYSTEM_ACCESSTOKEN" --allow-no-subscriptions
+                az login --service-principal -u "$ARM_CLIENT_ID" --tenant "$ARM_TENANT_ID" --federated-token "$(System.AccessToken)" --allow-no-subscriptions
 
                 # Explicitly set the subscription again
                 az account set --subscription "68013f73-ff8b-4a58-a1c4-67fb285c8c95"
 
                 # Verify login
                 az account show
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)  # Pass System.AccessToken to script
 
           - script: |
               echo "Creating Resource Group and Storage Account if not exist..."
