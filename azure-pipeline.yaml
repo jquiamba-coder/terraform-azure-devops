@@ -38,6 +38,7 @@ stages:
 
           # Step 3: Initialize Terraform and Upgrade Dependencies
           - script: |
+              az account set --subscription $(AZURE_SUBSCRIPTION)  # Explicitly set the subscription
               terraform init -upgrade \
                 -backend-config="resource_group_name=terraform-backend-rg" \
                 -backend-config="storage_account_name=mytfstatestoragejq0714" \
