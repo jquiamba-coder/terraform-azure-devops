@@ -8,19 +8,20 @@ stages:
       - job: Plan_Dev
         displayName: "Terraform Init & Plan"
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: 'ubuntu-22.04'  # ✅ Use stable Ubuntu version
         steps:
           - task: TerraformInstaller@0
             inputs:
               terraformVersion: 'latest'
 
           - script: |
-              echo "Checking environment variables:"
+              echo "✅ Checking environment variables:"
               echo "ARM_CLIENT_ID: ${#ARM_CLIENT_ID} characters long"
               echo "ARM_TENANT_ID: ${#ARM_TENANT_ID} characters long"
+              echo "ARM_SUBSCRIPTION_ID: ${#ARM_SUBSCRIPTION_ID} characters long"
 
               if [[ -z "$ARM_CLIENT_ID" || -z "$ARM_TENANT_ID" || -z "$ARM_CLIENT_SECRET" || -z "$ARM_SUBSCRIPTION_ID" ]]; then
-                echo "❌ ERROR: One or more required environment variables are missing!"
+                echo "❌ ERROR: Missing required environment variables!"
                 exit 1
               fi
             displayName: "Debug: Check Variable Lengths"
@@ -32,9 +33,10 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "Logging into Azure..."
+                echo "🔹 Logging into Azure..."
                 az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" --allow-no-subscriptions
                 az account set --subscription "$ARM_SUBSCRIPTION_ID"
+                az account show
             env:
               ARM_CLIENT_ID: $(ARM_CLIENT_ID)
               ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
@@ -60,7 +62,7 @@ stages:
       - job: Plan_Staging
         displayName: "Terraform Init & Plan"
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: 'ubuntu-22.04'
         steps:
           - script: |
               terraform init
@@ -81,9 +83,11 @@ stages:
       - job: Apply_Staging
         displayName: "Terraform Apply"
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: 'ubuntu-22.04'
         steps:
           - script: |
+              terraform init  # ✅ Ensure Terraform is initialized
+              terraform workspace select staging
               terraform apply -auto-approve
             displayName: "Terraform Apply (Staging)"
             env:
@@ -100,7 +104,7 @@ stages:
       - job: Plan_Prod
         displayName: "Terraform Init & Plan"
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: 'ubuntu-22.04'
         steps:
           - script: |
               terraform init
@@ -121,9 +125,11 @@ stages:
       - job: Apply_Prod
         displayName: "Terraform Apply"
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: 'ubuntu-22.04'
         steps:
           - script: |
+              terraform init  # ✅ Ensure Terraform is initialized
+              terraform workspace select prod
               terraform apply -auto-approve
             displayName: "Terraform Apply (Production)"
             env:
@@ -131,4 +137,3 @@ stages:
               ARM_TENANT_ID: "$(ARM_TENANT_ID)"
               ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
               ARM_USE_OIDC: "true"
-
