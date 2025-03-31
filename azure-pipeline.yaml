@@ -15,28 +15,16 @@ stages:
               terraformVersion: "latest"
 
           - task: AzureCLI@2
-            displayName: "Azure CLI Login with Managed Identity"
+            displayName: "Azure CLI Login using Service Principal"
             inputs:
               azureSubscription: "azure-terraform-connection"
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "🔹 Logging into Azure using Managed Identity..."
-                az login --identity
+                echo "🔹 Logging into Azure using Service Principal..."
+                az login --service-principal -u "$(ARM_CLIENT_ID)" -p "$(ARM_CLIENT_SECRET)" --tenant "$(ARM_TENANT_ID)"
                 az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
                 az account show
-
-          - script: |
-              echo "✅ Checking environment variables:"
-              echo "ARM_CLIENT_ID: ${#ARM_CLIENT_ID} characters long"
-              echo "ARM_TENANT_ID: ${#ARM_TENANT_ID} characters long"
-              echo "ARM_SUBSCRIPTION_ID: ${#ARM_SUBSCRIPTION_ID} characters long"
-
-              if [[ -z "$ARM_CLIENT_ID" || -z "$ARM_TENANT_ID" || -z "$ARM_SUBSCRIPTION_ID" ]]; then
-                echo "ERROR: Missing required environment variables!"
-                exit 1
-              fi
-            displayName: "Debug: Check Variable Lengths"
 
           - script: |
               echo "🔹 Creating Resource Group and Storage Account if not exist..."
@@ -68,13 +56,10 @@ stages:
                 echo "Storage Account $STORAGE_ACCOUNT_NAME already exists."
               fi
 
-              # Get Storage Account Key
-              ACCOUNT_KEY=$(az storage account keys list --resource-group $RG_NAME --account-name $STORAGE_ACCOUNT_NAME --query '[0].value' -o tsv)
-
-              # Create Storage Container if it doesn't exist
-              if ! az storage container show --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT_NAME --account-key $ACCOUNT_KEY &>/dev/null; then
+              # Create Storage Container if it doesn't exist (Use auth-mode login)
+              if ! az storage container show --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT_NAME --auth-mode login &>/dev/null; then
                 echo "Creating Storage Container: $CONTAINER_NAME"
-                az storage container create --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT_NAME --account-key $ACCOUNT_KEY
+                az storage container create --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT_NAME --auth-mode login
               else
                 echo "Storage Container $CONTAINER_NAME already exists."
               fi
@@ -97,6 +82,7 @@ stages:
             displayName: "Terraform Init & Plan (Dev)"
             env:
               ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
+              ARM_CLIENT_SECRET: "$(ARM_CLIENT_SECRET)"
               ARM_TENANT_ID: "$(ARM_TENANT_ID)"
               ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
               ARM_USE_OIDC: "true"
