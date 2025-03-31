@@ -8,11 +8,11 @@ stages:
       - job: Plan_Dev
         displayName: "Terraform Init & Plan"
         pool:
-          vmImage: 'ubuntu-22.04'  # ✅ Use stable Ubuntu version
+          vmImage: "ubuntu-22.04"
         steps:
           - task: TerraformInstaller@0
             inputs:
-              terraformVersion: 'latest'
+              terraformVersion: "latest"
 
           - script: |
               echo "✅ Checking environment variables:"
@@ -20,7 +20,7 @@ stages:
               echo "ARM_TENANT_ID: ${#ARM_TENANT_ID} characters long"
               echo "ARM_SUBSCRIPTION_ID: ${#ARM_SUBSCRIPTION_ID} characters long"
 
-              if [[ -z "$ARM_CLIENT_ID" || -z "$ARM_TENANT_ID" || -z "$ARM_CLIENT_SECRET" || -z "$ARM_SUBSCRIPTION_ID" ]]; then
+              if [[ -z "$ARM_CLIENT_ID" || -z "$ARM_TENANT_ID" || -z "$ARM_SUBSCRIPTION_ID" ]]; then
                 echo "❌ ERROR: Missing required environment variables!"
                 exit 1
               fi
@@ -33,19 +33,18 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "🔹 Logging into Azure..."
-                az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" --allow-no-subscriptions
+                echo "🔹 Logging into Azure using Managed Identity..."
+                az login --identity
                 az account set --subscription "$ARM_SUBSCRIPTION_ID"
                 az account show
             env:
-              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
-              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
-              ARM_TENANT_ID: $(ARM_TENANT_ID)
-              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
+              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
+              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
 
           - script: |
               terraform init -reconfigure
-              terraform workspace new dev || terraform workspace select dev
+              terraform workspace select dev || terraform workspace new dev
               terraform plan -var="resource_group_name=dev-rg"
             displayName: "Terraform Init & Plan (Dev)"
             env:
@@ -62,11 +61,11 @@ stages:
       - job: Plan_Staging
         displayName: "Terraform Init & Plan"
         pool:
-          vmImage: 'ubuntu-22.04'
+          vmImage: "ubuntu-22.04"
         steps:
           - script: |
               terraform init
-              terraform workspace new staging || terraform workspace select staging
+              terraform workspace select staging || terraform workspace new staging
               terraform plan -var="resource_group_name=staging-rg"
             displayName: "Terraform Init & Plan (Staging)"
             env:
@@ -83,10 +82,10 @@ stages:
       - job: Apply_Staging
         displayName: "Terraform Apply"
         pool:
-          vmImage: 'ubuntu-22.04'
+          vmImage: "ubuntu-22.04"
         steps:
           - script: |
-              terraform init  # ✅ Ensure Terraform is initialized
+              terraform init
               terraform workspace select staging
               terraform apply -auto-approve
             displayName: "Terraform Apply (Staging)"
@@ -104,11 +103,11 @@ stages:
       - job: Plan_Prod
         displayName: "Terraform Init & Plan"
         pool:
-          vmImage: 'ubuntu-22.04'
+          vmImage: "ubuntu-22.04"
         steps:
           - script: |
               terraform init
-              terraform workspace new prod || terraform workspace select prod
+              terraform workspace select prod || terraform workspace new prod
               terraform plan -var="resource_group_name=prod-rg"
             displayName: "Terraform Init & Plan (Prod)"
             env:
@@ -125,10 +124,10 @@ stages:
       - job: Apply_Prod
         displayName: "Terraform Apply"
         pool:
-          vmImage: 'ubuntu-22.04'
+          vmImage: "ubuntu-22.04"
         steps:
           - script: |
-              terraform init  # ✅ Ensure Terraform is initialized
+              terraform init
               terraform workspace select prod
               terraform apply -auto-approve
             displayName: "Terraform Apply (Production)"
