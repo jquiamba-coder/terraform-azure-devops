@@ -21,8 +21,11 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "✅ Azure login successful"
+                az account clear
+                az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID"
+                az account set --subscription "$ARM_SUBSCRIPTION_ID"
                 az account show
+
 
           - script: |
               echo "🔹 Creating Resource Group and Storage Account if not exist..."
