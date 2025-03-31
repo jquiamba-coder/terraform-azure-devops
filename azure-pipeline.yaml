@@ -1,100 +1,113 @@
 trigger:
-  - main
+  - main  # Run the pipeline when changes are pushed to the main branch
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  TF_VERSION: '1.6.0'
+  AZURE_SUBSCRIPTION: '68013f73-ff8b-4a58-a1c4-67fb285c8c95'
 
 stages:
-  - stage: Terraform_Dev
-    displayName: "Terraform Plan for Dev"
+  - stage: Terraform_Deploy
+    displayName: "Terraform Deployment"
     jobs:
-      - job: Plan_Dev
-        displayName: "Terraform Init & Plan"
+      - job: Terraform
+        displayName: "Run Terraform"
         pool:
-          vmImage: "ubuntu-22.04"
+          vmImage: 'ubuntu-latest'
         steps:
-          - checkout: self
-            persistCredentials: true  # Ensures OAuth token availability
 
-          - task: TerraformInstaller@0
+          # Step 1: Install Terraform
+          - task: TerraformInstaller@1
+            displayName: "Install Terraform"
             inputs:
-              terraformVersion: "latest"
+              terraformVersion: $(TF_VERSION)
 
-       - task: AzureCLI@2
-  displayName: "Azure CLI Login (OIDC Federated Identity)"
-  inputs:
-    azureSubscription: "azure-terraform-connection"
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      echo "🔹 Logging in to Azure using OIDC (Federated Identity)..."
+          # Step 2: Authenticate with Azure using Federated Credentials
+          - task: AzureCLI@2
+            displayName: "Login to Azure using Federated Credentials"
+            inputs:
+              azureSubscription: 'terraform-azure-devops-federated'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az account show
 
-      # Ensure OIDC token is available
-      if [ -z "$AZURE_ACCESS_TOKEN" ]; then
-        echo "❌ ERROR: AZURE_ACCESS_TOKEN is not available!"
-        exit 1
-      fi
-
-      # Perform login using OIDC token
-      az login --service-principal -u "$ARM_CLIENT_ID" --tenant "$ARM_TENANT_ID" --federated-token "$AZURE_ACCESS_TOKEN" --allow-no-subscriptions
-
-      # Verify login
-      az account show
-  env:
-    AZURE_ACCESS_TOKEN: $(System.AccessToken)
-
-
+          # Step 3: Initialize Terraform and Upgrade Dependencies
           - script: |
-              echo "Creating Resource Group and Storage Account if not exist..."
+              terraform init -upgrade \
+                -backend-config="resource_group_name=terraform-backend-rg" \
+                -backend-config="storage_account_name=mytfstatestoragejq0714" \
+                -backend-config="container_name=tfstate" \
+                -backend-config="key=terraform.tfstate"
+            displayName: "Terraform Init"
+            workingDirectory: 'infra/terraform'
 
-              RG_NAME="terraform-state-rg"
-              STORAGE_ACCOUNT_NAME="jqterraformstate1"
-              CONTAINER_NAME="tfstate"
-              LOCATION="eastus"
-
-              # Ensure login is successful
-              az account show || { echo "❌ Not logged into Azure!"; exit 1; }
-
-              # Create Resource Group if not exists
-              if ! az group show --name "$RG_NAME" &>/dev/null; then
-                echo "Creating Resource Group: $RG_NAME"
-                az group create --name "$RG_NAME" --location "$LOCATION" || { echo "❌ Failed to create Resource Group"; exit 1; }
-              else
-                echo "✅ Resource Group $RG_NAME already exists."
-              fi
-
-              # Create Storage Account if not exists
-              if ! az storage account show --name "$STORAGE_ACCOUNT_NAME" --resource-group "$RG_NAME" &>/dev/null; then
-                echo "Creating Storage Account: $STORAGE_ACCOUNT_NAME"
-                az storage account create \
-                  --name "$STORAGE_ACCOUNT_NAME" \
-                  --resource-group "$RG_NAME" \
-                  --sku Standard_LRS \
-                  --kind StorageV2 \
-                  --location "$LOCATION" \
-                  --allow-blob-public-access false || { echo "❌ Failed to create Storage Account"; exit 1; }
-              else
-                echo "✅ Storage Account $STORAGE_ACCOUNT_NAME already exists."
-              fi
-
-              # Get Storage Account Key (Required for Container Creation)
-              STORAGE_KEY=$(az storage account keys list --account-name "$STORAGE_ACCOUNT_NAME" --resource-group "$RG_NAME" --query '[0].value' -o tsv)
-
-              # Create Storage Container if not exists
-              if ! az storage container show --name "$CONTAINER_NAME" --account-name "$STORAGE_ACCOUNT_NAME" --account-key "$STORAGE_KEY" &>/dev/null; then
-                echo "Creating Storage Container: $CONTAINER_NAME"
-                az storage container create --name "$CONTAINER_NAME" --account-name "$STORAGE_ACCOUNT_NAME" --account-key "$STORAGE_KEY" || { echo "❌ Failed to create Storage Container"; exit 1; }
-              else
-                echo "✅ Storage Container $CONTAINER_NAME already exists."
-              fi
-            displayName: "Create Resource Group, Storage Account, and Container"
-
+          # Step 4: Generate Terraform Plan
           - script: |
-              echo "🔹 Initializing Terraform Backend..."
-              terraform init -reconfigure
-              terraform workspace select dev || terraform workspace new dev
-              terraform plan -var="resource_group_name=dev-rg"
-            displayName: "Terraform Init & Plan (Dev)"
-            env:
-              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
-              ARM_CLIENT_SECRET: "$(ARM_CLIENT_SECRET)"
-              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
-              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
-              ARM_USE_OIDC: "true"
+              terraform plan -out=tfplan
+            displayName: "Terraform Plan"
+            workingDirectory: 'infra/terraform'
+
+          # Step 5: Upload .terraform.lock.hcl & tfplan as Artifacts
+          - task: PublishPipelineArtifact@1
+            displayName: "Upload Terraform Lock File and Plan"
+            inputs:
+              targetPath: 'infra/terraform/.terraform.lock.hcl'
+              artifact: 'terraform-lockfile'
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Upload tfplan"
+            inputs:
+              targetPath: 'infra/terraform/tfplan'
+              artifact: 'tfplan'
+
+      - job: Manual_Approval
+        displayName: "Approve Terraform Apply"
+        dependsOn: Terraform
+        pool: server
+        steps:
+          - task: ManualValidation@1
+            displayName: "Approve Terraform Apply"
+            inputs:
+              notifyUsers: "jlsryn.quiambao@gmail.com"
+              instructions: "Review Terraform plan before applying."
+
+      - job: Terraform_Apply
+        displayName: "Terraform Apply"
+        dependsOn: Manual_Approval
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+
+          # Step 6: Install Terraform (Same Version)
+          - task: TerraformInstaller@1
+            displayName: "Install Terraform"
+            inputs:
+              terraformVersion: $(TF_VERSION)
+
+          # Step 7: Download .terraform.lock.hcl & tfplan
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download Terraform Lock File"
+            inputs:
+              artifact: 'terraform-lockfile'
+              path: 'infra/terraform'
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download tfplan"
+            inputs:
+              artifact: 'tfplan'
+              path: 'infra/terraform'
+
+          # Step 8: Reinitialize Terraform with Correct Dependencies
+          - script: |
+              terraform init -upgrade
+            displayName: "Reinitialize Terraform"
+            workingDirectory: 'infra/terraform'
+
+          # Step 9: Apply Terraform Plan
+          - script: |
+              terraform apply -auto-approve tfplan
+            displayName: "Terraform Apply"
+            workingDirectory: 'infra/terraform'
