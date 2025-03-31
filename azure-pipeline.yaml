@@ -21,8 +21,8 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "🔹 Logging into Azure using Managed Identity..."
-                az login --identity
+                echo "🔹 Logging into Azure..."
+                az login --service-principal -u "$(ARM_CLIENT_ID)" -p "$(ARM_CLIENT_SECRET)" --tenant "$(ARM_TENANT_ID)"
                 az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
                 az account show
 
@@ -32,19 +32,21 @@ stages:
               echo "ARM_TENANT_ID: ${#ARM_TENANT_ID} characters long"
               echo "ARM_SUBSCRIPTION_ID: ${#ARM_SUBSCRIPTION_ID} characters long"
 
-              if [[ -z "$ARM_CLIENT_ID" || -z "$ARM_TENANT_ID" || -z "$ARM_SUBSCRIPTION_ID" ]]; then
-                echo "❌ ERROR: Missing required environment variables!"
+              if [[ -z "$ARM_CLIENT_ID" || -z "$ARM_TENANT_ID" || -z "$ARM_CLIENT_SECRET" || -z "$ARM_SUBSCRIPTION_ID" ]]; then
+                echo "ERROR: Missing required environment variables!"
                 exit 1
               fi
             displayName: "Debug: Check Variable Lengths"
 
           - script: |
+              echo "🔹 Initializing Terraform Backend..."
               terraform init -reconfigure
               terraform workspace select dev || terraform workspace new dev
               terraform plan -var="resource_group_name=dev-rg"
             displayName: "Terraform Init & Plan (Dev)"
             env:
               ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
+              ARM_CLIENT_SECRET: "$(ARM_CLIENT_SECRET)"
               ARM_TENANT_ID: "$(ARM_TENANT_ID)"
               ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
               ARM_USE_OIDC: "true"
