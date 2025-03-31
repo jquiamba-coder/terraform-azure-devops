@@ -15,21 +15,79 @@ stages:
               terraformVersion: "latest"
 
           - task: AzureCLI@2
-            displayName: "🔹 Login to Azure with Managed Identity"
+            displayName: "Azure CLI Login with Managed Identity"
             inputs:
               azureSubscription: "azure-terraform-connection"
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
                 echo "🔹 Logging into Azure using Managed Identity..."
-                az login --identity --username "$(ARM_CLIENT_ID)"
+                az login --identity
                 az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
                 az account show
-            env:
-              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
-              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
-              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
-              ARM_USE_OIDC: "true"
+
+          - script: |
+              echo "✅ Checking environment variables:"
+              echo "ARM_CLIENT_ID: ${#ARM_CLIENT_ID} characters long"
+              echo "ARM_TENANT_ID: ${#ARM_TENANT_ID} characters long"
+              echo "ARM_SUBSCRIPTION_ID: ${#ARM_SUBSCRIPTION_ID} characters long"
+
+              if [[ -z "$ARM_CLIENT_ID" || -z "$ARM_TENANT_ID" || -z "$ARM_SUBSCRIPTION_ID" ]]; then
+                echo "ERROR: Missing required environment variables!"
+                exit 1
+              fi
+            displayName: "Debug: Check Variable Lengths"
+
+          - script: |
+              echo "🔹 Creating Resource Group and Storage Account if not exist..."
+
+              RG_NAME="terraform-state-rg"
+              STORAGE_ACCOUNT_NAME="jqterraformstate1"
+              CONTAINER_NAME="tfstate"
+              LOCATION="eastus"
+
+              # Create Resource Group if it doesn't exist
+              if ! az group show --name $RG_NAME &>/dev/null; then
+                echo "Creating Resource Group: $RG_NAME"
+                az group create --name $RG_NAME --location $LOCATION
+              else
+                echo "Resource Group $RG_NAME already exists."
+              fi
+
+              # Create Storage Account if it doesn't exist
+              if ! az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group $RG_NAME &>/dev/null; then
+                echo "Creating Storage Account: $STORAGE_ACCOUNT_NAME"
+                az storage account create \
+                  --name $STORAGE_ACCOUNT_NAME \
+                  --resource-group $RG_NAME \
+                  --sku Standard_LRS \
+                  --kind StorageV2 \
+                  --location $LOCATION \
+                  --allow-blob-public-access false
+              else
+                echo "Storage Account $STORAGE_ACCOUNT_NAME already exists."
+              fi
+
+              # Get Storage Account Key
+              ACCOUNT_KEY=$(az storage account keys list --resource-group $RG_NAME --account-name $STORAGE_ACCOUNT_NAME --query '[0].value' -o tsv)
+
+              # Create Storage Container if it doesn't exist
+              if ! az storage container show --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT_NAME --account-key $ACCOUNT_KEY &>/dev/null; then
+                echo "Creating Storage Container: $CONTAINER_NAME"
+                az storage container create --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT_NAME --account-key $ACCOUNT_KEY
+              else
+                echo "Storage Container $CONTAINER_NAME already exists."
+              fi
+            displayName: "Create Resource Group, Storage Account, and Container"
+
+          - script: |
+              echo "🔹 Assigning Storage Blob Data Contributor role to Managed Identity..."
+              az role assignment create \
+                --assignee "$(ARM_CLIENT_ID)" \
+                --role "Storage Blob Data Contributor" \
+                --scope "/subscriptions/$(ARM_SUBSCRIPTION_ID)/resourceGroups/terraform-state-rg/providers/Microsoft.Storage/storageAccounts/jqterraformstate1" \
+                || echo "Role assignment already exists or failed"
+            displayName: "Assign Permissions to Managed Identity"
 
           - script: |
               echo "🔹 Initializing Terraform Backend..."
