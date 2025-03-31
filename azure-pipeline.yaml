@@ -17,34 +17,29 @@ stages:
             inputs:
               terraformVersion: "latest"
 
-          - task: AzureCLI@2
-            displayName: "Azure CLI Login (OIDC Federated Identity)"
-            inputs:
-              azureSubscription: "azure-terraform-connection"
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "🔹 Logging in to Azure using OIDC (Federated Identity)..."
+       - task: AzureCLI@2
+  displayName: "Azure CLI Login (OIDC Federated Identity)"
+  inputs:
+    azureSubscription: "azure-terraform-connection"
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      echo "🔹 Logging in to Azure using OIDC (Federated Identity)..."
 
-                # Clear any previous session
-                az account clear
+      # Ensure OIDC token is available
+      if [ -z "$AZURE_ACCESS_TOKEN" ]; then
+        echo "❌ ERROR: AZURE_ACCESS_TOKEN is not available!"
+        exit 1
+      fi
 
-                # Ensure SYSTEM_ACCESSTOKEN is available
-                if [ -z "$(System.AccessToken)" ]; then
-                  echo "❌ ERROR: SYSTEM_ACCESSTOKEN is not available!"
-                  exit 1
-                fi
+      # Perform login using OIDC token
+      az login --service-principal -u "$ARM_CLIENT_ID" --tenant "$ARM_TENANT_ID" --federated-token "$AZURE_ACCESS_TOKEN" --allow-no-subscriptions
 
-                # Perform login using OIDC token
-                az login --service-principal -u "$ARM_CLIENT_ID" --tenant "$ARM_TENANT_ID" --federated-token "$(System.AccessToken)" --allow-no-subscriptions
+      # Verify login
+      az account show
+  env:
+    AZURE_ACCESS_TOKEN: $(System.AccessToken)
 
-                # Explicitly set the subscription again
-                az account set --subscription "68013f73-ff8b-4a58-a1c4-67fb285c8c95"
-
-                # Verify login
-                az account show
-            env:
-              SYSTEM_ACCESSTOKEN: $(System.AccessToken)  # Pass System.AccessToken to script
 
           - script: |
               echo "Creating Resource Group and Storage Account if not exist..."
