@@ -21,14 +21,22 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
+                echo "Logging in to Azure using OIDC (Federated Identity)..."
+                
+                # Ensure old sessions are cleared
                 az account clear
-                az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID"
-                az account set --subscription "$ARM_SUBSCRIPTION_ID"
+
+                # Login using federated token (OIDC)
+                az login --service-principal -u "$ARM_CLIENT_ID" --tenant "$ARM_TENANT_ID" --federated-token "$SYSTEM_ACCESSTOKEN" --allow-no-subscriptions
+
+                # Verify login and set subscription
                 az account show
+                az account set --subscription "$ARM_SUBSCRIPTION_ID"
+      
 
 
           - script: |
-              echo "🔹 Creating Resource Group and Storage Account if not exist..."
+              echo "Creating Resource Group and Storage Account if not exist..."
 
               RG_NAME="terraform-state-rg"
               STORAGE_ACCOUNT_NAME="jqterraformstate1"
