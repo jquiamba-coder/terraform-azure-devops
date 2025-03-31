@@ -15,13 +15,13 @@ stages:
               terraformVersion: "latest"
 
           - task: AzureCLI@2
-            displayName: "🔍 Debug Azure Login"
+            displayName: "🔹 Login to Azure with Managed Identity"
             inputs:
               azureSubscription: "azure-terraform-connection"
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "🔹 Logging into Azure with Managed Identity..."
+                echo "🔹 Logging into Azure using Managed Identity..."
                 az login --identity --username "$(ARM_CLIENT_ID)"
                 az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
                 az account show
@@ -30,18 +30,6 @@ stages:
               ARM_TENANT_ID: "$(ARM_TENANT_ID)"
               ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
               ARM_USE_OIDC: "true"
-
-          - script: |
-              echo "✅ Checking environment variables:"
-              echo "ARM_CLIENT_ID: ${#ARM_CLIENT_ID} characters long"
-              echo "ARM_TENANT_ID: ${#ARM_TENANT_ID} characters long"
-              echo "ARM_SUBSCRIPTION_ID: ${#ARM_SUBSCRIPTION_ID} characters long"
-
-              if [[ -z "$ARM_CLIENT_ID" || -z "$ARM_TENANT_ID" || -z "$ARM_SUBSCRIPTION_ID" ]]; then
-                echo "ERROR: Missing required environment variables!"
-                exit 1
-              fi
-            displayName: "Debug: Check Variable Lengths"
 
           - script: |
               echo "🔹 Initializing Terraform Backend..."
