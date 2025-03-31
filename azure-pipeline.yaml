@@ -22,7 +22,6 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "✅ Azure login successful"
-                az account set --subscription "$ARM_SUBSCRIPTION_ID"
                 az account show
 
           - script: |
