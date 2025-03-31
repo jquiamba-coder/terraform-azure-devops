@@ -21,8 +21,8 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "🔹 Logging into Azure using Service Principal..."
-                az login --service-principal -u "$(ARM_CLIENT_ID)" -p "$(ARM_CLIENT_SECRET)" --tenant "$(ARM_TENANT_ID)"
+                echo "🔹 Logging into Azure..."
+                az login --service-principal -u "$(ARM_CLIENT_ID)" -p "$(ARM_CLIENT_SECRET)" --tenant "$(ARM_TENANT_ID)" || { echo "❌ Azure login failed!"; exit 1; }
                 az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
                 az account show
 
@@ -34,15 +34,18 @@ stages:
               CONTAINER_NAME="tfstate"
               LOCATION="eastus"
 
-              # Create Resource Group if it doesn't exist
+              # Ensure login is successful
+              az account show || { echo "❌ Not logged into Azure!"; exit 1; }
+
+              # Create Resource Group if not exists
               if ! az group show --name $RG_NAME &>/dev/null; then
                 echo "Creating Resource Group: $RG_NAME"
-                az group create --name $RG_NAME --location $LOCATION
+                az group create --name $RG_NAME --location $LOCATION || { echo "❌ Failed to create Resource Group"; exit 1; }
               else
-                echo "Resource Group $RG_NAME already exists."
+                echo "✅ Resource Group $RG_NAME already exists."
               fi
 
-              # Create Storage Account if it doesn't exist
+              # Create Storage Account if not exists
               if ! az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group $RG_NAME &>/dev/null; then
                 echo "Creating Storage Account: $STORAGE_ACCOUNT_NAME"
                 az storage account create \
@@ -51,28 +54,19 @@ stages:
                   --sku Standard_LRS \
                   --kind StorageV2 \
                   --location $LOCATION \
-                  --allow-blob-public-access false
+                  --allow-blob-public-access false || { echo "❌ Failed to create Storage Account"; exit 1; }
               else
-                echo "Storage Account $STORAGE_ACCOUNT_NAME already exists."
+                echo "✅ Storage Account $STORAGE_ACCOUNT_NAME already exists."
               fi
 
-              # Create Storage Container if it doesn't exist (Use auth-mode login)
+              # Create Storage Container if not exists
               if ! az storage container show --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT_NAME --auth-mode login &>/dev/null; then
                 echo "Creating Storage Container: $CONTAINER_NAME"
-                az storage container create --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT_NAME --auth-mode login
+                az storage container create --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT_NAME --auth-mode login || { echo "❌ Failed to create Storage Container"; exit 1; }
               else
-                echo "Storage Container $CONTAINER_NAME already exists."
+                echo "✅ Storage Container $CONTAINER_NAME already exists."
               fi
             displayName: "Create Resource Group, Storage Account, and Container"
-
-          - script: |
-              echo "🔹 Assigning Storage Blob Data Contributor role to Managed Identity..."
-              az role assignment create \
-                --assignee "$(ARM_CLIENT_ID)" \
-                --role "Storage Blob Data Contributor" \
-                --scope "/subscriptions/$(ARM_SUBSCRIPTION_ID)/resourceGroups/terraform-state-rg/providers/Microsoft.Storage/storageAccounts/jqterraformstate1" \
-                || echo "Role assignment already exists or failed"
-            displayName: "Assign Permissions to Managed Identity"
 
           - script: |
               echo "🔹 Initializing Terraform Backend..."
