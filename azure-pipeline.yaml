@@ -14,6 +14,18 @@ stages:
             inputs:
               terraformVersion: "latest"
 
+          - task: AzureCLI@2
+            displayName: "Azure CLI Login"
+            inputs:
+              azureSubscription: "azure-terraform-connection"
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "🔹 Logging into Azure using Managed Identity..."
+                az login --identity
+                az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
+                az account show
+
           - script: |
               echo "✅ Checking environment variables:"
               echo "ARM_CLIENT_ID: ${#ARM_CLIENT_ID} characters long"
@@ -26,111 +38,11 @@ stages:
               fi
             displayName: "Debug: Check Variable Lengths"
 
-          - task: AzureCLI@2
-            displayName: "Azure CLI Login"
-            inputs:
-              azureSubscription: "azure-terraform-connection"
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "🔹 Logging into Azure using Managed Identity..."
-                az login --identity
-                az account set --subscription "$ARM_SUBSCRIPTION_ID"
-                az account show
-            env:
-              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
-              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
-              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
-
           - script: |
               terraform init -reconfigure
               terraform workspace select dev || terraform workspace new dev
               terraform plan -var="resource_group_name=dev-rg"
             displayName: "Terraform Init & Plan (Dev)"
-            env:
-              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
-              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
-              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
-              ARM_USE_OIDC: "true"
-
-  - stage: Terraform_Staging
-    displayName: "Terraform Plan for Staging"
-    dependsOn: Terraform_Dev
-    condition: succeeded()
-    jobs:
-      - job: Plan_Staging
-        displayName: "Terraform Init & Plan"
-        pool:
-          vmImage: "ubuntu-22.04"
-        steps:
-          - script: |
-              terraform init
-              terraform workspace select staging || terraform workspace new staging
-              terraform plan -var="resource_group_name=staging-rg"
-            displayName: "Terraform Init & Plan (Staging)"
-            env:
-              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
-              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
-              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
-              ARM_USE_OIDC: "true"
-
-  - stage: Terraform_Staging_Apply
-    displayName: "Terraform Apply for Staging"
-    dependsOn: Terraform_Staging
-    condition: succeeded()
-    jobs:
-      - job: Apply_Staging
-        displayName: "Terraform Apply"
-        pool:
-          vmImage: "ubuntu-22.04"
-        steps:
-          - script: |
-              terraform init
-              terraform workspace select staging
-              terraform apply -auto-approve
-            displayName: "Terraform Apply (Staging)"
-            env:
-              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
-              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
-              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
-              ARM_USE_OIDC: "true"
-
-  - stage: Terraform_Prod
-    displayName: "Terraform Plan for Production"
-    dependsOn: Terraform_Staging_Apply
-    condition: succeeded()
-    jobs:
-      - job: Plan_Prod
-        displayName: "Terraform Init & Plan"
-        pool:
-          vmImage: "ubuntu-22.04"
-        steps:
-          - script: |
-              terraform init
-              terraform workspace select prod || terraform workspace new prod
-              terraform plan -var="resource_group_name=prod-rg"
-            displayName: "Terraform Init & Plan (Prod)"
-            env:
-              ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
-              ARM_TENANT_ID: "$(ARM_TENANT_ID)"
-              ARM_SUBSCRIPTION_ID: "$(ARM_SUBSCRIPTION_ID)"
-              ARM_USE_OIDC: "true"
-
-  - stage: Terraform_Prod_Apply
-    displayName: "Terraform Apply for Production"
-    dependsOn: Terraform_Prod
-    condition: succeeded()
-    jobs:
-      - job: Apply_Prod
-        displayName: "Terraform Apply"
-        pool:
-          vmImage: "ubuntu-22.04"
-        steps:
-          - script: |
-              terraform init
-              terraform workspace select prod
-              terraform apply -auto-approve
-            displayName: "Terraform Apply (Production)"
             env:
               ARM_CLIENT_ID: "$(ARM_CLIENT_ID)"
               ARM_TENANT_ID: "$(ARM_TENANT_ID)"
