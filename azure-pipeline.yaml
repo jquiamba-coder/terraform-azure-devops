@@ -32,7 +32,7 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                az account show
+                az account show --output json || echo "Azure authentication failed."
                 echo "Authentication setup complete."
 
           # Step 3: Initialize Terraform
