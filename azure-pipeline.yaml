@@ -48,10 +48,10 @@ stages:
               export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
               export TF_IN_AUTOMATION=true
 
-              # Persist environment variables for next steps
-              echo "ARM_CLIENT_ID=${AZURE_CLIENT_ID}" >> $GITHUB_ENV
-              echo "ARM_TENANT_ID=${AZURE_TENANT_ID}" >> $GITHUB_ENV
-              echo "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}" >> $GITHUB_ENV
+              # Persist environment variables for next steps (Azure DevOps syntax)
+              echo "ARM_CLIENT_ID=${AZURE_CLIENT_ID}" >> $(Pipeline.Workspace)/envfile
+              echo "ARM_TENANT_ID=${AZURE_TENANT_ID}" >> $(Pipeline.Workspace)/envfile
+              echo "ARM_SUBSCRIPTION_ID=${ARM_SUBSCRIPTION_ID}" >> $(Pipeline.Workspace)/envfile
 
               echo "Terraform authentication environment is set."
             displayName: "Set Azure Authentication for Terraform"
