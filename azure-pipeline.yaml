@@ -6,7 +6,7 @@ pool:
 
 variables:
   TF_VERSION: '1.6.0'
-  AZURE_SUBSCRIPTION: '68013f73-ff8b-4a58-a1c4-67fb285c8c95'
+  AZURE_SUBSCRIPTION: 'terraform-pipeline'  # Use service connection name, not subscription ID
 
 stages:
   - stage: Terraform_Deploy
@@ -24,18 +24,26 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Step 2: Authenticate with Azure using Federated Credential
+          # Step 2: Authenticate with Azure
           - task: AzureCLI@2
-            displayName: 'Login to Azure using Service Principal'
+            displayName: 'Login to Azure'
             inputs:
-              azureSubscription: 'terraform-pipeline'  # This should be the service connection name
+              azureSubscription: $(AZURE_SUBSCRIPTION)
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                echo "Authenticated to Azure"
+                echo "Logging into Azure..."
                 az account show --query "{Name: name, TenantId: tenantId, SubscriptionId: id}"
+                
+                # Export ARM variables for Terraform authentication
+                echo "Exporting Terraform authentication variables..."
+                export ARM_CLIENT_ID=$(az ad sp list --filter "appId eq '$SP_APP_ID'" --query "[0].appId" -o tsv)
+                export ARM_SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
+                export ARM_TENANT_ID=$(az account show --query "tenantId" -o tsv)
+                export ARM_USE_OIDC=true
+                echo "Authentication setup complete."
 
-          # Step 3: Initialize Terraform and Upgrade Dependencies
+          # Step 3: Initialize Terraform
           - script: |
               terraform init -upgrade \
                 -backend-config="resource_group_name=terraform-backend-rg" \
@@ -51,7 +59,7 @@ stages:
             displayName: "Terraform Plan"
             workingDirectory: 'infra/terraform'
 
-          # Step 5: Upload .terraform.lock.hcl & tfplan as Artifacts
+          # Step 5: Upload Terraform Lock File and Plan
           - task: PublishPipelineArtifact@1
             displayName: "Upload Terraform Lock File and Plan"
             inputs:
@@ -82,13 +90,13 @@ stages:
           vmImage: 'ubuntu-latest'
         steps:
 
-          # Step 6: Install Terraform (Same Version)
+          # Step 6: Install Terraform
           - task: TerraformInstaller@1
             displayName: "Install Terraform"
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Step 7: Download .terraform.lock.hcl & tfplan
+          # Step 7: Download Terraform Lock File and Plan
           - task: DownloadPipelineArtifact@2
             displayName: "Download Terraform Lock File"
             inputs:
@@ -101,7 +109,7 @@ stages:
               artifact: 'tfplan'
               path: 'infra/terraform'
 
-          # Step 8: Reinitialize Terraform with Correct Dependencies
+          # Step 8: Reinitialize Terraform
           - script: |
               terraform init -upgrade
             displayName: "Reinitialize Terraform"
