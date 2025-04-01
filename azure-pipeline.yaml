@@ -33,9 +33,8 @@ stages:
               scriptLocation: 'inlineScript'
               inlineScript: |
                 set -x
-                echo "Logging into Azure..."
-                az login --identity || (echo "Azure authentication failed." && exit 1)
-                az account show --output json || (echo "Azure authentication check failed." && exit 1)
+                echo "Confirming Azure authentication..."
+                az account show --output json || (echo "Azure authentication failed." && exit 1)
                 echo "Azure authentication successful."
 
           # Step 3: Set Environment Variables for Terraform Authentication
