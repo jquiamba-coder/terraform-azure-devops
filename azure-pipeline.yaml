@@ -41,27 +41,28 @@ stages:
           - task: AzureCLI@2
             displayName: "Set Azure Authentication for Terraform"
             inputs:
-            azureSubscription: $(AZURE_SUBSCRIPTION)
-            scriptType: 'bash'
-            scriptLocation: 'inlineScript'
-            inlineScript: |
-              set -x
-              echo "Setting up Terraform authentication..."
+              azureSubscription: $(AZURE_SUBSCRIPTION)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                set -x
+                echo "Setting up Terraform authentication..."
 
-              export ARM_USE_OIDC=true
-              export ARM_CLIENT_ID=$(az ad sp show --id $(AZURE_CLIENT_ID) --query appId -o tsv)
-              export ARM_TENANT_ID=$(az account show --query tenantId -o tsv)
-              export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                export ARM_USE_OIDC=true
+                export ARM_CLIENT_ID=$(az ad sp show --id $(AZURE_CLIENT_ID) --query appId -o tsv)
+                export ARM_TENANT_ID=$(az account show --query tenantId -o tsv)
+                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
-              echo "##vso[task.setvariable variable=ARM_USE_OIDC;]true"
-              echo "##vso[task.setvariable variable=ARM_CLIENT_ID;]$ARM_CLIENT_ID"
-              echo "##vso[task.setvariable variable=ARM_TENANT_ID;]$ARM_TENANT_ID"
-              echo "##vso[task.setvariable variable=ARM_SUBSCRIPTION_ID;]$ARM_SUBSCRIPTION_ID"
+                echo "##vso[task.setvariable variable=ARM_USE_OIDC;]true"
+                echo "##vso[task.setvariable variable=ARM_CLIENT_ID;]$ARM_CLIENT_ID"
+                echo "##vso[task.setvariable variable=ARM_TENANT_ID;]$ARM_TENANT_ID"
+                echo "##vso[task.setvariable variable=ARM_SUBSCRIPTION_ID;]$ARM_SUBSCRIPTION_ID"
 
-              echo "Terraform authentication environment is set."
-            displayName: "Set Azure Authentication for Terraform"
+                echo "Terraform authentication environment is set."
 
-          - script: env | grep ARM_ || echo "No ARM environment variables found."
+          - script: |
+              echo "Checking if ARM environment variables are set..."
+              env | grep ARM_ || echo "No ARM environment variables found."
             displayName: "Debug Terraform Authentication Variables"
 
           - script: az account show
@@ -85,7 +86,7 @@ stages:
 
           # Step 6: Upload Terraform Lock File and Plan
           - task: PublishPipelineArtifact@1
-            displayName: "Upload Terraform Lock File and Plan"
+            displayName: "Upload Terraform Lock File"
             inputs:
               targetPath: 'infra/terraform/.terraform.lock.hcl'
               artifact: 'terraform-lockfile'
