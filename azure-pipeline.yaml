@@ -23,23 +23,19 @@ stages:
             displayName: "Install Terraform"
             inputs:
               terraformVersion: $(TF_VERSION)
-          # Step 2: Login to azure using Service Principal
+
+          # Step 2: Authenticate with Azure using Federated Credential
           - task: AzureCLI@2
             displayName: "Login to Azure using Service Principal"
             inputs:
-              azureSubscription: 'terraform-pipeline'  # Name of the Azure Service Connection
+              azureSubscription: 'terraform-pipeline'  # The name of the service connection
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                echo "Logging into Azure CLI..."
-                az login --service-principal -u $(AZURE_CLIENT_ID) -p $(AZURE_CLIENT_SECRET) --tenant $(AZURE_TENANT_ID)
-                echo "Authenticated to Azure with account:"
+                # Authenticate to Azure using the service connection
+                echo "Authenticating to Azure..."
                 az account show --query "{Name: name, TenantId: tenantId, SubscriptionId: id}"
-                az account set --subscription $(AZURE_SUBSCRIPTION)  # Set the subscription explicitly
-
-          - script: |
-              az account show --query "{Name: name, TenantId: tenantId, SubscriptionId: id}"
-            displayName: "Verify Azure Login"      
+                az account set --subscription $(AZURE_SUBSCRIPTION)  # Set the subscription
 
           # Step 3: Initialize Terraform and Upgrade Dependencies
           - script: |
