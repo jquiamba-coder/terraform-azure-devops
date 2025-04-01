@@ -60,13 +60,11 @@ stages:
 
                 echo "Terraform authentication environment is set."
 
+          # Debug Step: Verify Terraform Authentication Variables
           - script: |
               echo "Checking if ARM environment variables are set..."
               env | grep ARM_ || echo "No ARM environment variables found."
             displayName: "Debug Terraform Authentication Variables"
-
-          - script: az account show
-            displayName: "Confirm Azure Authentication Before Terraform"
 
           # Step 4: Initialize Terraform
           - script: |
