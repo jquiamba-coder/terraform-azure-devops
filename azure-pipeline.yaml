@@ -26,21 +26,13 @@ stages:
 
           # Step 2: Authenticate with Azure
           - task: AzureCLI@2
-            displayName: 'Login to Azure'
+            displayName: "Login to Azure using Federated Credentials"
             inputs:
-              azureSubscription: $(AZURE_SUBSCRIPTION)
+              azureSubscription: 'terraform-pipeline'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                echo "Logging into Azure..."
-                az account show --query "{Name: name, TenantId: tenantId, SubscriptionId: id}"
-                
-                # Export ARM variables for Terraform authentication
-                echo "Exporting Terraform authentication variables..."
-                export ARM_CLIENT_ID=$(az ad sp list --filter "appId eq '$SP_APP_ID'" --query "[0].appId" -o tsv)
-                export ARM_SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
-                export ARM_TENANT_ID=$(az account show --query "tenantId" -o tsv)
-                export ARM_USE_OIDC=true
+                az account show
                 echo "Authentication setup complete."
 
           # Step 3: Initialize Terraform
