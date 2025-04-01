@@ -32,41 +32,42 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
+                set -x
                 echo "Logging into Azure..."
-                az account show --output json || (echo "Azure authentication failed." && exit 1)
+                az login --identity || (echo "Azure authentication failed." && exit 1)
+                az account show --output json || (echo "Azure authentication check failed." && exit 1)
                 echo "Azure authentication successful."
-
 
           # Step 3: Set Environment Variables for Terraform Authentication
           - script: |
+              set -x
               echo "Setting up Terraform authentication..."
               export ARM_USE_OIDC=true
-              export ARM_CLIENT_ID=$(AZURE_CLIENT_ID)
-              export ARM_TENANT_ID=$(AZURE_TENANT_ID)
+              export ARM_CLIENT_ID=${AZURE_CLIENT_ID}
+              export ARM_TENANT_ID=${AZURE_TENANT_ID}
               export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
               export TF_IN_AUTOMATION=true
-              echo "ARM_CLIENT_ID: $ARM_CLIENT_ID"
-              echo "ARM_TENANT_ID: $ARM_TENANT_ID"
-              echo "ARM_SUBSCRIPTION_ID: $ARM_SUBSCRIPTION_ID"
 
-              # Validate Authentication
-              az account show --output json || (echo "Azure authentication check failed." && exit 1)
+              # Persist environment variables for next steps
+              echo "ARM_CLIENT_ID=${AZURE_CLIENT_ID}" >> $GITHUB_ENV
+              echo "ARM_TENANT_ID=${AZURE_TENANT_ID}" >> $GITHUB_ENV
+              echo "ARM_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}" >> $GITHUB_ENV
+
               echo "Terraform authentication environment is set."
             displayName: "Set Azure Authentication for Terraform"
 
-          - script: env | grep ARM_
+          - script: env | grep ARM_ || echo "No ARM environment variables found."
             displayName: "Debug Terraform Authentication Variables"
 
           - script: az account show
             displayName: "Confirm Azure Authentication Before Terraform"
 
-
           # Step 4: Initialize Terraform
           - script: |
               terraform init -upgrade \
-                -backend-config="resource_group_name=terraform-backend-rg" \
-                -backend-config="storage_account_name=mytfstatestoragejq0714" \
-                -backend-config="container_name=tfstate" \
+                -backend-config="resource_group_name=<RESOURCE_GROUP_NAME>" \
+                -backend-config="storage_account_name=<STORAGE_ACCOUNT_NAME>" \
+                -backend-config="container_name=<CONTAINER_NAME>" \
                 -backend-config="key=terraform.tfstate"
             displayName: "Terraform Init"
             workingDirectory: 'infra/terraform'
