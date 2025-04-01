@@ -46,9 +46,20 @@ stages:
               export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
               export TF_IN_AUTOMATION=true
               echo "ARM_CLIENT_ID: $ARM_CLIENT_ID"
-              echo "ARM_SUBSCRIPTION_ID: $ARM_SUBSCRIPTION_ID"
               echo "ARM_TENANT_ID: $ARM_TENANT_ID"
+              echo "ARM_SUBSCRIPTION_ID: $ARM_SUBSCRIPTION_ID"
+
+              # Validate Authentication
+              az account show --output json || (echo "Azure authentication check failed." && exit 1)
+              echo "Terraform authentication environment is set."
             displayName: "Set Azure Authentication for Terraform"
+
+          - script: env | grep ARM_
+            displayName: "Debug Terraform Authentication Variables"
+
+          - script: az account show
+            displayName: "Confirm Azure Authentication Before Terraform"
+
 
           # Step 4: Initialize Terraform
           - script: |
