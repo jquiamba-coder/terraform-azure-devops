@@ -32,7 +32,24 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                az account show
+                echo "Fetching Azure authentication details..."
+                # Get Subscription ID
+                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                echo "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID" >> $GITHUB_ENV
+
+                # Get Tenant ID
+                export ARM_TENANT_ID=$(az account show --query tenantId -o tsv)
+                echo "ARM_TENANT_ID=$ARM_TENANT_ID" >> $GITHUB_ENV
+
+                # Get Client ID from service principal
+                export ARM_CLIENT_ID=$(az ad sp list --display-name $(AZURE_SUBSCRIPTION) --query "[0].appId" -o tsv)
+                echo "ARM_CLIENT_ID=$ARM_CLIENT_ID" >> $GITHUB_ENV
+
+                # Set Terraform environment variables
+                echo "Setting Terraform authentication environment variables..."
+                echo "##vso[task.setvariable variable=ARM_SUBSCRIPTION_ID]$ARM_SUBSCRIPTION_ID"
+                echo "##vso[task.setvariable variable=ARM_TENANT_ID]$ARM_TENANT_ID"
+                echo "##vso[task.setvariable variable=ARM_CLIENT_ID]$ARM_CLIENT_ID"
 
           - script: |
               echo "Checking Terraform environment variables..."
