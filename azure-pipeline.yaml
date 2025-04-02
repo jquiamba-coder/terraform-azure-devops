@@ -6,7 +6,10 @@ pool:
 
 variables:
   TF_VERSION: '1.6.0'
-  AZURE_SUBSCRIPTION: 'terraform-pipeline'  # Use service connection name, not subscription ID
+  AZURE_SUBSCRIPTION: 'terraform-pipeline'  # Service connection name
+  TF_RESOURCE_GROUP: 'terraform-backend-rg'
+  TF_STORAGE_ACCOUNT: 'mytfstatestoragejq0714'
+  TF_CONTAINER_NAME: 'tfstate-container'
 
 stages:
   - stage: Terraform_Deploy
@@ -17,40 +20,25 @@ stages:
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-
-          # Step 1: Install Terraform
           - task: TerraformInstaller@1
             displayName: "Install Terraform"
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Step 2: Authenticate with Azure and Set Terraform Authentication Variable
           - task: AzureCLI@2
-            displayName: "Login to Azure using Service Connection"
+            displayName: "Azure Login (Service Connection)"
             inputs:
               azureSubscription: $(AZURE_SUBSCRIPTION)
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                set -e  # Exit on error
-                echo "Logging into Azure..."
-
-                if [[ -z "$AZURE_CLIENT_ID" || -z "$AZURE_CLIENT_SECRET" || -z "$AZURE_TENANT_ID" ]]; then
-                 echo "ERROR: Missing Azure credentials. Ensure service connection variables are set."
-                 exit 1
-                fi
-
-                az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
-                az account set --subscription "$AZURE_SUBSCRIPTION"
                 az account show
 
-          # Step 3: Verify Terraform Authentication Variables
           - script: |
-              echo "Checking if ARM environment variables are set..."
+              echo "Checking Terraform environment variables..."
               env | grep ARM_ || echo "No ARM environment variables found."
             displayName: "Debug Terraform Authentication Variables"
 
-          # Step 4: Initialize Terraform
           - script: |
               terraform init -upgrade \
                 -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
@@ -60,13 +48,11 @@ stages:
             displayName: "Terraform Init"
             workingDirectory: 'infra/terraform'
 
-          # Step 5: Generate Terraform Plan
           - script: |
               terraform plan -out=tfplan
             displayName: "Terraform Plan"
             workingDirectory: 'infra/terraform'
 
-          # Step 6: Upload Terraform Lock File and Plan
           - task: PublishPipelineArtifact@1
             displayName: "Upload Terraform Lock File"
             inputs:
@@ -96,14 +82,11 @@ stages:
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-
-          # Step 7: Install Terraform
           - task: TerraformInstaller@1
             displayName: "Install Terraform"
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Step 8: Download Terraform Lock File and Plan
           - task: DownloadPipelineArtifact@2
             displayName: "Download Terraform Lock File"
             inputs:
@@ -116,13 +99,11 @@ stages:
               artifact: 'tfplan'
               path: 'infra/terraform'
 
-          # Step 9: Reinitialize Terraform
           - script: |
               terraform init -upgrade
             displayName: "Reinitialize Terraform"
             workingDirectory: 'infra/terraform'
 
-          # Step 10: Apply Terraform Plan
           - script: |
               terraform apply -auto-approve tfplan
             displayName: "Terraform Apply"
