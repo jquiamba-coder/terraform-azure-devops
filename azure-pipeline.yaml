@@ -24,55 +24,35 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Step 2: Authenticate with Azure
+          # Step 2: Authenticate with Azure and Set Terraform Authentication Variables
           - task: AzureCLI@2
-            displayName: "Login to Azure using Federated Credentials"
+            displayName: "Login to Azure using Service Connection"
             inputs:
               azureSubscription: $(AZURE_SUBSCRIPTION)
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                set -x
-                echo "Confirming Azure authentication..."
-                az account show --output json || (echo "Azure authentication failed." && exit 1)
-                echo "Azure authentication successful."
-
-          # Step 3: Set Environment Variables for Terraform Authentication
-          - task: AzureCLI@2
-            displayName: "Set Azure Authentication for Terraform"
-            inputs:
-              azureSubscription: $(AZURE_SUBSCRIPTION)
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                set -x
-                echo "Setting up Terraform authentication..."
-
+                set -e
+                echo "Logging into Azure..."
+                
+                az login --identity || az login --service-principal -u $(AZURE_CLIENT_ID) -p $(AZURE_CLIENT_SECRET) --tenant $(AZURE_TENANT_ID)
+                az account set --subscription $(AZURE_SUBSCRIPTION_ID)
+                
+                echo "Fetching authentication details..."
+                
                 export ARM_USE_OIDC=true
-                export ARM_CLIENT_ID=$(az ad sp show --id $(AZURE_CLIENT_ID) --query appId -o tsv)
-                export ARM_TENANT_ID=$(az account show --query tenantId -o tsv)
-                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                export ARM_CLIENT_ID=$(AZURE_CLIENT_ID)
+                export ARM_TENANT_ID=$(AZURE_TENANT_ID)
+                export ARM_SUBSCRIPTION_ID=$(AZURE_SUBSCRIPTION_ID)
 
-                echo "##vso[task.setvariable variable=ARM_USE_OIDC;]true"
-                echo "##vso[task.setvariable variable=ARM_CLIENT_ID;]$ARM_CLIENT_ID"
-                echo "##vso[task.setvariable variable=ARM_TENANT_ID;]$ARM_TENANT_ID"
-                echo "##vso[task.setvariable variable=ARM_SUBSCRIPTION_ID;]$ARM_SUBSCRIPTION_ID"
+                echo "##vso[task.setvariable variable=ARM_USE_OIDC]true"
+                echo "##vso[task.setvariable variable=ARM_CLIENT_ID]$ARM_CLIENT_ID"
+                echo "##vso[task.setvariable variable=ARM_TENANT_ID]$ARM_TENANT_ID"
+                echo "##vso[task.setvariable variable=ARM_SUBSCRIPTION_ID]$ARM_SUBSCRIPTION_ID"
 
-                echo "Terraform authentication environment is set."
-
-          - task: AzureCLI@2
-            displayName: "Azure Login"
-            inputs:
-              azureSubscription: $(AZURE_SUBSCRIPTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
-                az account set --subscription $AZURE_SUBSCRIPTION_ID
                 az account show
 
-
-          # Debug Step: Verify Terraform Authentication Variables
+          # Step 3: Verify Terraform Authentication Variables
           - script: |
               echo "Checking if ARM environment variables are set..."
               env | grep ARM_ || echo "No ARM environment variables found."
@@ -81,9 +61,9 @@ stages:
           # Step 4: Initialize Terraform
           - script: |
               terraform init -upgrade \
-                -backend-config="resource_group_name=<RESOURCE_GROUP_NAME>" \
-                -backend-config="storage_account_name=<STORAGE_ACCOUNT_NAME>" \
-                -backend-config="container_name=<CONTAINER_NAME>" \
+                -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
+                -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
+                -backend-config="container_name=$(TF_CONTAINER_NAME)" \
                 -backend-config="key=terraform.tfstate"
             displayName: "Terraform Init"
             workingDirectory: 'infra/terraform'
