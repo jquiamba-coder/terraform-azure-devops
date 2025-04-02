@@ -35,22 +35,19 @@ stages:
                 echo "Logging into Azure..."
         
                 # Ensure login works
-                az account show || az login --service-principal -u $(ARM_CLIENT_ID) -p $(ARM_CLIENT_SECRET) --tenant $(ARM_TENANT_ID)
+                az account show --output table || az login --identity
         
                 # Set Subscription
                 export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
                 export ARM_TENANT_ID=$(az account show --query tenantId -o tsv)
-                export ARM_CLIENT_ID=$(az ad sp list --display-name $(AZURE_SUBSCRIPTION) --query "[0].appId" -o tsv)
 
                 # Debug output
                 echo "ARM_SUBSCRIPTION_ID=${ARM_SUBSCRIPTION_ID}"
                 echo "ARM_TENANT_ID=${ARM_TENANT_ID}"
-                echo "ARM_CLIENT_ID=${ARM_CLIENT_ID}"
 
                 # Set Pipeline Variables
                 echo "##vso[task.setvariable variable=ARM_SUBSCRIPTION_ID]${ARM_SUBSCRIPTION_ID}"
                 echo "##vso[task.setvariable variable=ARM_TENANT_ID]${ARM_TENANT_ID}"
-                echo "##vso[task.setvariable variable=ARM_CLIENT_ID]${ARM_CLIENT_ID}"
 
                 # Validate Subscription Context
                 az account set --subscription "${ARM_SUBSCRIPTION_ID}"
@@ -62,13 +59,18 @@ stages:
             displayName: "Debug Terraform Authentication Variables"
 
           - script: |
-              terraform init -upgrade \
+              terraform init -upgrade -reconfigure \
                 -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
                 -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
                 -backend-config="container_name=$(TF_CONTAINER_NAME)" \
                 -backend-config="key=terraform.tfstate"
             displayName: "Terraform Init"
             workingDirectory: 'infra/terraform'
+            env:
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
 
           - script: |
               terraform plan -out=tfplan
@@ -122,7 +124,7 @@ stages:
               path: 'infra/terraform'
 
           - script: |
-              terraform init -upgrade
+              terraform init -upgrade -reconfigure
             displayName: "Reinitialize Terraform"
             workingDirectory: 'infra/terraform'
 
