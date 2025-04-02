@@ -63,7 +63,7 @@ stages:
           - task: AzureCLI@2
             displayName: "Azure Login"
             inputs:
-              azureSubscription: "<Your-Service-Connection-Name>"
+              azureSubscription: $(AZURE_SUBSCRIPTION)
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
