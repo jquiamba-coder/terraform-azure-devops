@@ -44,16 +44,23 @@ stages:
               env | grep ARM_ || echo "No ARM environment variables found."
             displayName: "Debug Terraform Authentication Variables"
 
-          # ✅ Fix: Dynamically Retrieve Storage Account Key
+          # ✅ Fix: Dynamically Retrieve Storage Account Key with Validation
           - script: |
               echo "Retrieving storage account key..."
               STORAGE_KEY=$(az storage account keys list --resource-group $(TF_RESOURCE_GROUP) --account-name $(TF_STORAGE_ACCOUNT) --query '[0].value' -o tsv)
+              
+              if [ -z "$STORAGE_KEY" ]; then
+                echo "ERROR: Failed to retrieve storage account key."
+                exit 1
+              fi
+              
               echo "##vso[task.setvariable variable=STORAGE_ACCOUNT_KEY;issecret=true]$STORAGE_KEY"
             displayName: "Fetch Storage Account Key"
 
+          # ✅ Fix: Create Storage Container using Service Principal Authentication
           - script: |
               echo "Creating blob container if not exists..."
-              az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --account-key $(STORAGE_ACCOUNT_KEY)
+              az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --auth-mode login
             displayName: "Create Storage Blob Container"
 
           # ✅ Fix: Ensure Terraform Init has correct credentials
