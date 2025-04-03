@@ -25,7 +25,7 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # ✅ **Fix: Authenticate using Azure CLI task instead of manual login**
+          # Azure CLI task for login, automatically authenticates
           - task: AzureCLI@2
             displayName: "Azure Login via Service Connection"
             inputs:
@@ -36,26 +36,13 @@ stages:
                 echo "Successfully authenticated to Azure."
                 az account show
 
-          # ✅ **Fix: Use --auth-mode login instead of manually fetching storage key**
+          # Create the Blob container
           - script: |
               echo "Creating blob container if not exists..."
               az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --auth-mode login
             displayName: "Create Storage Blob Container"
 
-          # **Authenticate using Azure CLI before running terraform init**
-          - task: AzureCLI@2
-            displayName: "Authenticate Terraform with Azure CLI"
-            inputs:
-              azureSubscription: $(AZURE_SUBSCRIPTION)
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                echo "Authenticating Terraform with Azure CLI..."
-                az login --identity || echo "Already authenticated via service connection."
-                az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
-                az account show
-
-          # **Run Terraform Init**
+          # Terraform Init (auth will be handled by the Azure Service Connection)
           - script: |
               terraform init -upgrade -reconfigure \
                 -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
@@ -65,6 +52,7 @@ stages:
             displayName: "Terraform Init"
             workingDirectory: 'infra/terraform'
 
+          # Terraform Plan
           - script: |
               terraform plan -out=tfplan
             displayName: "Terraform Plan"
