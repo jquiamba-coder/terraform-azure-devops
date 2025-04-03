@@ -93,7 +93,7 @@ stages:
         pool:
           vmImage: 'ubuntu-latest'  # Corrected the pool to use a valid agent pool
         steps:
-          - task: ManualValidation@1
+          - task: ManualValidation@2
             displayName: "Approve Terraform Apply"
             inputs:
               notifyUsers: "jlsryn.quiambao@gmail.com"
