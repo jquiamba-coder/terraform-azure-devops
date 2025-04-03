@@ -57,6 +57,13 @@ stages:
             displayName: "Debug Terraform Authentication Variables"
 
           - script: |
+              echo "Creating blob container if not exists..."
+              az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --account-key $(STORAGE_ACCOUNT_KEY)
+            displayName: "Create Storage Blob Container"
+            env:
+              STORAGE_ACCOUNT_KEY: $(STORAGE_ACCOUNT_KEY)
+
+          - script: |
               terraform init -upgrade -reconfigure \
                 -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
                 -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
