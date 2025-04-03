@@ -25,7 +25,7 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Azure CLI task for service connection authentication (no need for az login)
+          # Azure CLI task for service connection authentication
           - task: AzureCLI@2
             displayName: "Azure Login (Service Connection)"
             inputs:
@@ -34,7 +34,7 @@ stages:
               scriptLocation: 'inlineScript'
               inlineScript: |
                 echo "Using the service connection to authenticate with Azure..."
-                # Optionally set the subscription if needed (though service connection should already handle this)
+                # Set subscription if not already set
                 az account set --subscription $(AZURE_SUBSCRIPTION)
                 az account show
 
@@ -64,10 +64,22 @@ stages:
               ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
               ARM_TENANT_ID: $(ARM_TENANT_ID)
 
+          # Verify Azure CLI account and subscription before terraform plan
+          - script: |
+              echo "Verifying Azure account before Terraform plan..."
+              az account show
+            displayName: "Verify Azure Account"
+            workingDirectory: 'infra/terraform'
+
           - script: |
               terraform plan -out=tfplan
             displayName: "Terraform Plan"
             workingDirectory: 'infra/terraform'
+            env:
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
 
           - task: PublishPipelineArtifact@1
             displayName: "Upload Terraform Lock File"
@@ -124,3 +136,8 @@ stages:
               terraform apply -auto-approve tfplan
             displayName: "Terraform Apply"
             workingDirectory: 'infra/terraform'
+            env:
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
