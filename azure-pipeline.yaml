@@ -25,7 +25,7 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Azure CLI task for service connection authentication
+          # ✅ Fix: Explicit Login to Azure
           - task: AzureCLI@2
             displayName: "Azure Login (Service Connection)"
             inputs:
@@ -33,29 +33,37 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                echo "Using the service connection to authenticate with Azure..."
-                # Set subscription if not already set
-                az account set --subscription $(AZURE_SUBSCRIPTION)
+                echo "Authenticating to Azure..."
+                az login --service-principal -u "$(ARM_CLIENT_ID)" -p "$(ARM_CLIENT_SECRET)" --tenant "$(ARM_TENANT_ID)"
+                az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
                 az account show
 
+          # ✅ Debug ARM environment variables
           - script: |
               echo "Checking Terraform environment variables..."
               env | grep ARM_ || echo "No ARM environment variables found."
             displayName: "Debug Terraform Authentication Variables"
 
+          # ✅ Fix: Dynamically Retrieve Storage Account Key
+          - script: |
+              echo "Retrieving storage account key..."
+              STORAGE_KEY=$(az storage account keys list --resource-group $(TF_RESOURCE_GROUP) --account-name $(TF_STORAGE_ACCOUNT) --query '[0].value' -o tsv)
+              echo "##vso[task.setvariable variable=STORAGE_ACCOUNT_KEY;issecret=true]$STORAGE_KEY"
+            displayName: "Fetch Storage Account Key"
+
           - script: |
               echo "Creating blob container if not exists..."
               az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --account-key $(STORAGE_ACCOUNT_KEY)
             displayName: "Create Storage Blob Container"
-            env:
-              STORAGE_ACCOUNT_KEY: $(STORAGE_ACCOUNT_KEY)
 
+          # ✅ Fix: Ensure Terraform Init has correct credentials
           - script: |
               terraform init -upgrade -reconfigure \
                 -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
                 -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
                 -backend-config="container_name=$(TF_CONTAINER_NAME)" \
-                -backend-config="key=terraform.tfstate"
+                -backend-config="key=terraform.tfstate" \
+                -backend-config="access_key=$(STORAGE_ACCOUNT_KEY)"
             displayName: "Terraform Init"
             workingDirectory: 'infra/terraform'
             env:
@@ -64,22 +72,10 @@ stages:
               ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
               ARM_TENANT_ID: $(ARM_TENANT_ID)
 
-          # Verify Azure CLI account and subscription before terraform plan
-          - script: |
-              echo "Verifying Azure account before Terraform plan..."
-              az account show
-            displayName: "Verify Azure Account"
-            workingDirectory: 'infra/terraform'
-
           - script: |
               terraform plan -out=tfplan
             displayName: "Terraform Plan"
             workingDirectory: 'infra/terraform'
-            env:
-              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
-              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
-              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
-              ARM_TENANT_ID: $(ARM_TENANT_ID)
 
           - task: PublishPipelineArtifact@1
             displayName: "Upload Terraform Lock File"
@@ -98,7 +94,7 @@ stages:
         dependsOn: Terraform
         pool: server
         steps:
-          - task: ManualValidation@1  # Specify version 1 of ManualValidation
+          - task: ManualValidation@1
             displayName: "Approve Terraform Apply"
             inputs:
               notifyUsers: "jlsryn.quiambao@gmail.com"
