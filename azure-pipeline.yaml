@@ -6,7 +6,7 @@ pool:
 
 variables:
   TF_VERSION: '1.6.0'
-  AZURE_SUBSCRIPTION: 'terraform-pipeline'
+  AZURE_SUBSCRIPTION: 'terraform-pipeline'  # Service connection name
   TF_RESOURCE_GROUP: 'terraform-backend-rg'
   TF_STORAGE_ACCOUNT: 'mytfstatestoragejq0714'
   TF_CONTAINER_NAME: 'tfstate-container'
@@ -25,23 +25,30 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Explicitly authenticate using service principal
+          # Azure CLI task for service connection authentication
           - task: AzureCLI@2
-            displayName: "Azure Login"
+            displayName: "Azure Login (Service Connection)"
             inputs:
               azureSubscription: $(AZURE_SUBSCRIPTION)
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                echo "Authenticating to Azure using Service Principal..."
-                az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID"
-                az account set --subscription "$ARM_SUBSCRIPTION_ID"
+                echo "Using the service connection to authenticate with Azure..."
+                # Set subscription if not already set
+                az account set --subscription $(AZURE_SUBSCRIPTION)
                 az account show
 
           - script: |
-              echo "Verifying Azure login..."
-              az account show
-            displayName: "Verify Azure Authentication"
+              echo "Checking Terraform environment variables..."
+              env | grep ARM_ || echo "No ARM environment variables found."
+            displayName: "Debug Terraform Authentication Variables"
+
+          - script: |
+              echo "Creating blob container if not exists..."
+              az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --account-key $(STORAGE_ACCOUNT_KEY)
+            displayName: "Create Storage Blob Container"
+            env:
+              STORAGE_ACCOUNT_KEY: $(STORAGE_ACCOUNT_KEY)
 
           - script: |
               terraform init -upgrade -reconfigure \
@@ -57,7 +64,80 @@ stages:
               ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
               ARM_TENANT_ID: $(ARM_TENANT_ID)
 
+          # Verify Azure CLI account and subscription before terraform plan
+          - script: |
+              echo "Verifying Azure account before Terraform plan..."
+              az account show
+            displayName: "Verify Azure Account"
+            workingDirectory: 'infra/terraform'
+
           - script: |
               terraform plan -out=tfplan
             displayName: "Terraform Plan"
             workingDirectory: 'infra/terraform'
+            env:
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Upload Terraform Lock File"
+            inputs:
+              targetPath: 'infra/terraform/.terraform.lock.hcl'
+              artifact: 'terraform-lockfile'
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Upload tfplan"
+            inputs:
+              targetPath: 'infra/terraform/tfplan'
+              artifact: 'tfplan'
+
+      - job: Manual_Approval
+        displayName: "Approve Terraform Apply"
+        dependsOn: Terraform
+        pool: server
+        steps:
+          - task: ManualValidation@1  # Specify version 1 of ManualValidation
+            displayName: "Approve Terraform Apply"
+            inputs:
+              notifyUsers: "jlsryn.quiambao@gmail.com"
+              instructions: "Review Terraform plan before applying."
+
+      - job: Terraform_Apply
+        displayName: "Terraform Apply"
+        dependsOn: Manual_Approval
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: TerraformInstaller@1
+            displayName: "Install Terraform"
+            inputs:
+              terraformVersion: $(TF_VERSION)
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download Terraform Lock File"
+            inputs:
+              artifact: 'terraform-lockfile'
+              path: 'infra/terraform'
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download tfplan"
+            inputs:
+              artifact: 'tfplan'
+              path: 'infra/terraform'
+
+          - script: |
+              terraform init -upgrade -reconfigure
+            displayName: "Reinitialize Terraform"
+            workingDirectory: 'infra/terraform'
+
+          - script: |
+              terraform apply -auto-approve tfplan
+            displayName: "Terraform Apply"
+            workingDirectory: 'infra/terraform'
+            env:
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
