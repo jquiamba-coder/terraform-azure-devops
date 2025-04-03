@@ -10,6 +10,10 @@ variables:
   TF_RESOURCE_GROUP: 'terraform-backend-rg'
   TF_STORAGE_ACCOUNT: 'mytfstatestoragejq0714'
   TF_CONTAINER_NAME: 'tfstate-container'
+  ARM_CLIENT_ID: $(ARM_CLIENT_ID)  # Ensure this variable is set in pipeline
+  ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)  # Ensure this variable is set in pipeline
+  ARM_TENANT_ID: $(ARM_TENANT_ID)  # Ensure this variable is set in pipeline
+  ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)  # Ensure this variable is set in pipeline
 
 stages:
   - stage: Terraform_Deploy
@@ -25,7 +29,7 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Azure CLI task for service connection authentication
+          # Azure CLI task for service connection authentication (no need for az login)
           - task: AzureCLI@2
             displayName: "Azure Login (Service Connection)"
             inputs:
@@ -34,9 +38,14 @@ stages:
               scriptLocation: 'inlineScript'
               inlineScript: |
                 echo "Using the service connection to authenticate with Azure..."
-                # Set subscription if not already set
+                az login --service-principal -u $(ARM_CLIENT_ID) -p $(ARM_CLIENT_SECRET) --tenant $(ARM_TENANT_ID)
                 az account set --subscription $(AZURE_SUBSCRIPTION)
                 az account show
+
+          - script: |
+              echo "Verifying Azure account credentials..."
+              az account list --output table
+            displayName: "Verify Azure Credentials"
 
           - script: |
               echo "Checking Terraform environment variables..."
@@ -64,22 +73,10 @@ stages:
               ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
               ARM_TENANT_ID: $(ARM_TENANT_ID)
 
-          # Verify Azure CLI account and subscription before terraform plan
-          - script: |
-              echo "Verifying Azure account before Terraform plan..."
-              az account show
-            displayName: "Verify Azure Account"
-            workingDirectory: 'infra/terraform'
-
           - script: |
               terraform plan -out=tfplan
             displayName: "Terraform Plan"
             workingDirectory: 'infra/terraform'
-            env:
-              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
-              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
-              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
-              ARM_TENANT_ID: $(ARM_TENANT_ID)
 
           - task: PublishPipelineArtifact@1
             displayName: "Upload Terraform Lock File"
@@ -136,8 +133,3 @@ stages:
               terraform apply -auto-approve tfplan
             displayName: "Terraform Apply"
             workingDirectory: 'infra/terraform'
-            env:
-              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
-              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
-              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
-              ARM_TENANT_ID: $(ARM_TENANT_ID)
