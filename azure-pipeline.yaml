@@ -90,8 +90,9 @@ stages:
       - job: Manual_Approval
         displayName: "Approve Terraform Apply"
         dependsOn: Terraform
+        pool: server
         steps:
-          - task: ManualValidation  # Remove versioning to use the latest version available
+          - task: ManualValidation@1  # Specify version 1 of ManualValidation
             displayName: "Approve Terraform Apply"
             inputs:
               notifyUsers: "jlsryn.quiambao@gmail.com"
