@@ -20,29 +20,30 @@ stages:
         pool:
           vmImage: 'ubuntu-latest'
         steps:
+          # Install Terraform
           - task: TerraformInstaller@1
             displayName: "Install Terraform"
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Azure CLI task for login, automatically authenticates
+          # Azure CLI authentication - This is the key to avoid logging in each time
           - task: AzureCLI@2
-            displayName: "Azure Login via Service Connection"
+            displayName: "Azure CLI Authentication"
             inputs:
-              azureSubscription: $(AZURE_SUBSCRIPTION)
+              azureSubscription: $(AZURE_SUBSCRIPTION)  # This should refer to your Service Connection
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                echo "Successfully authenticated to Azure."
-                az account show
+                echo "Authenticated to Azure using the service connection."
+                az account show  # This shows the authenticated account
 
-          # Create the Blob container
+          # Create Blob Container
           - script: |
               echo "Creating blob container if not exists..."
               az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --auth-mode login
             displayName: "Create Storage Blob Container"
 
-          # Terraform Init (auth will be handled by the Azure Service Connection)
+          # Terraform Init - No need to call `az login` again
           - script: |
               terraform init -upgrade -reconfigure \
                 -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
