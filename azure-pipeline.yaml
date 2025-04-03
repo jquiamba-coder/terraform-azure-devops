@@ -25,30 +25,43 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # ✅ **Azure CLI Authentication and Blob Container Creation**
+          # ✅ **Fix: Authenticate using Azure CLI task instead of manual login**
           - task: AzureCLI@2
-            displayName: "Azure Login and Blob Container Creation"
+            displayName: "Azure Login via Service Connection"
             inputs:
               azureSubscription: $(AZURE_SUBSCRIPTION)
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                echo "Authenticating to Azure..."
+                echo "Successfully authenticated to Azure."
+                az account show
+
+          # ✅ **Fix: Use --auth-mode login instead of manually fetching storage key**
+          - script: |
+              echo "Creating blob container if not exists..."
+              az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --auth-mode login
+            displayName: "Create Storage Blob Container"
+
+          # **Authenticate using Azure CLI before running terraform init**
+          - task: AzureCLI@2
+            displayName: "Authenticate Terraform with Azure CLI"
+            inputs:
+              azureSubscription: $(AZURE_SUBSCRIPTION)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "Authenticating Terraform with Azure CLI..."
                 az login --identity || echo "Already authenticated via service connection."
                 az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
                 az account show
-                echo "Creating blob container if not exists..."
-                az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --auth-mode login
 
-          # ✅ **Remove manual storage account key fetching**
-          # Terraform can authenticate via Azure CLI when configured properly.
+          # **Run Terraform Init**
           - script: |
               terraform init -upgrade -reconfigure \
                 -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
                 -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
                 -backend-config="container_name=$(TF_CONTAINER_NAME)" \
-                -backend-config="key=terraform.tfstate" \
-                -backend-config="use_azure_cli_auth=true"
+                -backend-config="key=terraform.tfstate"
             displayName: "Terraform Init"
             workingDirectory: 'infra/terraform'
 
