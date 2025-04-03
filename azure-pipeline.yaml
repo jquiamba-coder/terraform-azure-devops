@@ -25,26 +25,20 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # ✅ Fix: Explicit Login to Azure
-          - task: AzureCLI@2
-            displayName: "Azure Login (Service Connection)"
-            inputs:
-              azureSubscription: $(AZURE_SUBSCRIPTION)
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                echo "Authenticating to Azure..."
-                az login --service-principal -u "$(ARM_CLIENT_ID)" -p "$(ARM_CLIENT_SECRET)" --tenant "$(ARM_TENANT_ID)"
-                az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
-                az account show
+          # Explicit Azure Login on each step
+          - script: |
+              echo "Authenticating to Azure..."
+              az login --service-principal -u "$(ARM_CLIENT_ID)" -p "$(ARM_CLIENT_SECRET)" --tenant "$(ARM_TENANT_ID)"
+              az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
+            displayName: "Azure Login for Terraform Steps"
 
-          # ✅ Debug ARM environment variables
+          # Debug ARM environment variables
           - script: |
               echo "Checking Terraform environment variables..."
               env | grep ARM_ || echo "No ARM environment variables found."
             displayName: "Debug Terraform Authentication Variables"
 
-          # ✅ Fix: Dynamically Retrieve Storage Account Key with Validation
+          # Fetch Storage Account Key
           - script: |
               echo "Retrieving storage account key..."
               STORAGE_KEY=$(az storage account keys list --resource-group $(TF_RESOURCE_GROUP) --account-name $(TF_STORAGE_ACCOUNT) --query '[0].value' -o tsv)
@@ -57,13 +51,13 @@ stages:
               echo "##vso[task.setvariable variable=STORAGE_ACCOUNT_KEY;issecret=true]$STORAGE_KEY"
             displayName: "Fetch Storage Account Key"
 
-          # ✅ Fix: Create Storage Container using Service Principal Authentication
+          # Create Storage Blob Container
           - script: |
               echo "Creating blob container if not exists..."
               az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --auth-mode login
             displayName: "Create Storage Blob Container"
 
-          # ✅ Fix: Ensure Terraform Init has correct credentials
+          # Ensure Terraform Init has correct credentials
           - script: |
               terraform init -upgrade -reconfigure \
                 -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
@@ -129,6 +123,13 @@ stages:
             inputs:
               artifact: 'tfplan'
               path: 'infra/terraform'
+
+          # Explicit Azure Login for Apply Step
+          - script: |
+              echo "Authenticating to Azure..."
+              az login --service-principal -u "$(ARM_CLIENT_ID)" -p "$(ARM_CLIENT_SECRET)" --tenant "$(ARM_TENANT_ID)"
+              az account set --subscription "$(ARM_SUBSCRIPTION_ID)"
+            displayName: "Azure Login for Terraform Apply"
 
           - script: |
               terraform init -upgrade -reconfigure
