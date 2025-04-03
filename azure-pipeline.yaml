@@ -90,10 +90,8 @@ stages:
       - job: Manual_Approval
         displayName: "Approve Terraform Apply"
         dependsOn: Terraform
-        pool:
-          vmImage: 'ubuntu-latest'  # Corrected the pool to use a valid agent pool
         steps:
-          - task: ManualValidation@2
+          - task: ManualValidation@1  # Corrected to version 1
             displayName: "Approve Terraform Apply"
             inputs:
               notifyUsers: "jlsryn.quiambao@gmail.com"
