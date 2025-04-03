@@ -91,7 +91,7 @@ stages:
         displayName: "Approve Terraform Apply"
         dependsOn: Terraform
         steps:
-          - task: ManualValidation@1  # Corrected to version 1
+          - task: ManualValidation  # Remove versioning to use the latest version available
             displayName: "Approve Terraform Apply"
             inputs:
               notifyUsers: "jlsryn.quiambao@gmail.com"
