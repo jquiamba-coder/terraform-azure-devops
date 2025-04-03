@@ -25,6 +25,7 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
+          # Azure CLI task for service connection authentication
           - task: AzureCLI@2
             displayName: "Azure Login (Service Connection)"
             inputs:
@@ -32,23 +33,8 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                echo "Logging into Azure..."
-                az login --service-principal -u $(ARM_CLIENT_ID) -p $(ARM_CLIENT_SECRET) --tenant $(ARM_TENANT_ID)
-
-                # Retrieve Subscription Info
-                export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-                export ARM_TENANT_ID=$(az account show --query tenantId -o tsv)
-
-                # Debug output
-                echo "ARM_SUBSCRIPTION_ID=${ARM_SUBSCRIPTION_ID}"
-                echo "ARM_TENANT_ID=${ARM_TENANT_ID}"
-
-                # Set Pipeline Variables
-                echo "##vso[task.setvariable variable=ARM_SUBSCRIPTION_ID]${ARM_SUBSCRIPTION_ID}"
-                echo "##vso[task.setvariable variable=ARM_TENANT_ID]${ARM_TENANT_ID}"
-
-                # Validate Subscription Context
-                az account set --subscription "${ARM_SUBSCRIPTION_ID}"
+                echo "Using the service connection to authenticate with Azure..."
+                az account set --subscription $(ARM_SUBSCRIPTION_ID)
                 az account show
 
           - script: |
