@@ -25,7 +25,7 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Azure CLI task for service connection authentication
+          # Azure CLI task for service connection authentication (no need for az login)
           - task: AzureCLI@2
             displayName: "Azure Login (Service Connection)"
             inputs:
@@ -34,7 +34,8 @@ stages:
               scriptLocation: 'inlineScript'
               inlineScript: |
                 echo "Using the service connection to authenticate with Azure..."
-                az account set --subscription $(ARM_SUBSCRIPTION_ID)
+                # Optionally set the subscription if needed (though service connection should already handle this)
+                az account set --subscription $(AZURE_SUBSCRIPTION)
                 az account show
 
           - script: |
