@@ -6,7 +6,7 @@ pool:
 
 variables:
   TF_VERSION: '1.6.0'
-  AZURE_SUBSCRIPTION: 'terraform-pipeline'
+  AZURE_SUBSCRIPTION: 'terraform-pipeline'  # Ensure this matches your service connection
   TF_RESOURCE_GROUP: 'terraform-backend-rg'
   TF_STORAGE_ACCOUNT: 'mytfstatestoragejq0714'
   TF_CONTAINER_NAME: 'tfstate-container'
@@ -26,11 +26,11 @@ stages:
             inputs:
               terraformVersion: $(TF_VERSION)
 
-          # Azure CLI authentication - This is the key to avoid logging in each time
+          # Azure CLI Authentication (Only needs to be done once here)
           - task: AzureCLI@2
             displayName: "Azure CLI Authentication"
             inputs:
-              azureSubscription: $(AZURE_SUBSCRIPTION)  # This should refer to your Service Connection
+              azureSubscription: $(AZURE_SUBSCRIPTION)  # This should be your Service Connection
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
@@ -43,7 +43,7 @@ stages:
               az storage container create --name $(TF_CONTAINER_NAME) --account-name $(TF_STORAGE_ACCOUNT) --auth-mode login
             displayName: "Create Storage Blob Container"
 
-          # Terraform Init - No need to call `az login` again
+          # Terraform Init - No need for az login anymore
           - script: |
               terraform init -upgrade -reconfigure \
                 -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
@@ -51,10 +51,4 @@ stages:
                 -backend-config="container_name=$(TF_CONTAINER_NAME)" \
                 -backend-config="key=terraform.tfstate"
             displayName: "Terraform Init"
-            workingDirectory: 'infra/terraform'
-
-          # Terraform Plan
-          - script: |
-              terraform plan -out=tfplan
-            displayName: "Terraform Plan"
             workingDirectory: 'infra/terraform'
